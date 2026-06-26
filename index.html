@@ -169,6 +169,14 @@
   </div>
 </div>
 
+<!-- ── Debug overlay (TEMPORARY — shows eyetracker diagnostics) ───────── -->
+<div id="debug-panel" style="
+  position:fixed; bottom:8px; right:8px; z-index:99999;
+  background:rgba(0,0,0,0.85); color:#0f0; font:11px/1.5 monospace;
+  padding:8px 12px; border-radius:8px; pointer-events:none;
+  max-width:320px; border:1px solid #333;
+"></div>
+
 <!-- ── Application JS (load order matters) ─────────────────────────────── -->
 <script src="js/i18n.js"></script>
 <script src="js/tts.js"></script>
@@ -177,6 +185,53 @@
 <script src="js/calibration.js"></script>
 <script src="js/keyboard.js"></script>
 <script src="js/app.js"></script>
+
+<script>
+// Debug: show live eye-tracking diagnostics
+(function(){
+  const panel = document.getElementById('debug-panel');
+  if (!panel) return;
+  
+  let frameCount = 0;
+  let lastIris = {x:'-', y:'-'};
+  let lastMapped = {x:'-', y:'-'};
+  let gazeCallCount = 0;
+
+  // Listen for raw iris events
+  document.addEventListener('eyetracker-raw-iris', e => {
+    lastIris = { x: e.detail.x.toFixed(4), y: e.detail.y.toFixed(4) };
+    frameCount++;
+  });
+
+  // Patch onGaze to count calls
+  const origWire = window.App._wireAppHandlers;
+  
+  // Poll status every 200ms
+  setInterval(() => {
+    const dot = document.getElementById('gaze-dot');
+    const dotPos = dot ? `${parseInt(dot.style.left||0)}, ${parseInt(dot.style.top||0)}` : 'N/A';
+    
+    const status = window.EyeTracker.getStatus();
+    const hasCalib = localStorage.getItem('eyetype_calibration');
+    let calibInfo = 'none';
+    if (hasCalib) {
+      try {
+        const c = JSON.parse(hasCalib);
+        calibInfo = `v${c._v || '?'} ax:${(c.ax||0).toFixed(1)}`;
+      } catch(e) { calibInfo = 'parse error'; }
+    }
+
+    panel.innerHTML = [
+      `<b>EyeType Debug</b>`,
+      `Status: <span style="color:${status==='tracking'?'#0f0':'#f00'}">${status}</span>`,
+      `Iris frames: ${frameCount}`,
+      `Raw iris: ${lastIris.x}, ${lastIris.y}`,
+      `Gaze dot: ${dotPos}`,
+      `Calibration: ${calibInfo}`,
+    ].join('<br>');
+  }, 200);
+})();
+</script>
 
 </body>
 </html>
