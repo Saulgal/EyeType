@@ -189,7 +189,8 @@ window.App = (function () {
 
   function speakText() {
     if (!appText.trim()) return;
-    if (isSpeaking) { TTS.stop(); isSpeaking = false; speakBtn.classList.remove('speaking'); return; }
+    // Always cancel any ongoing speech and restart immediately
+    TTS.stop();
     isSpeaking = true;
     speakBtn.classList.add('speaking');
     TTS.speak(appText, null, () => {
@@ -197,6 +198,7 @@ window.App = (function () {
       speakBtn.classList.remove('speaking');
     });
   }
+
 
   // ─── Word suggestions ─────────────────────────────────────────────────────
   function updateSuggestions() {

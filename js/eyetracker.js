@@ -19,8 +19,7 @@ window.EyeTracker = (function () {
   const BLINK_MAX_MS        = 400;   // max blink (longer = long-close)
   const LONG_CLOSE_MS       = 1000;  // hold closed this long = confirm
   const TRIPLE_BLINK_WINDOW = 1800;  // ms window for 3 blinks
-  const SMOOTH_FACTOR       = 0.25;  // lower = more smoothing (0–1)
-  const GAZE_DEADZONE       = 4;     // px — suppress micro-jitter
+  const SMOOTH_FACTOR       = 0.40;  // higher = more responsive, less filtered
 
   // ─── State ─────────────────────────────────────────────────────────────────
   let faceMesh   = null;
@@ -79,18 +78,20 @@ window.EyeTracker = (function () {
    *   screen_y = bx * iris_x + by * iris_y + bz
    */
   function mapToScreen(irisX, irisY) {
+    let x, y;
     if (!calibData) {
-      // Fallback linear mapping using viewport size
-      return {
-        x: (1 - irisX) * window.innerWidth,
-        y: irisY * window.innerHeight,
-      };
+      // Fallback: direct linear mapping (iris at center → screen center)
+      x = (1 - irisX) * window.innerWidth;   // mirror horizontally
+      y = irisY * window.innerHeight;
+    } else {
+      const { ax, ay, az, bx, by, bz } = calibData;
+      x = ax * irisX + ay * irisY + az;
+      y = bx * irisX + by * irisY + bz;
     }
-    const { ax, ay, az, bx, by, bz } = calibData;
-    return {
-      x: ax * irisX + ay * irisY + az,
-      y: bx * irisX + by * irisY + bz,
-    };
+    // Clamp to screen bounds — protects against bad calibration data
+    x = Math.max(0, Math.min(window.innerWidth,  x));
+    y = Math.max(0, Math.min(window.innerHeight, y));
+    return { x, y };
   }
 
   // ─── Blink event logic ─────────────────────────────────────────────────────
@@ -169,7 +170,8 @@ window.EyeTracker = (function () {
 
     const mapped = mapToScreen(rawIrisX, rawIrisY);
 
-    // Exponential moving average smoothing
+    // Exponential moving average smoothing — handles jitter without a dead zone
+    // (dead zones cause the cursor to freeze when movement is small)
     if (smoothX === null) {
       smoothX = mapped.x;
       smoothY = mapped.y;
@@ -178,14 +180,8 @@ window.EyeTracker = (function () {
       smoothY += SMOOTH_FACTOR * (mapped.y - smoothY);
     }
 
-    // Apply dead zone to suppress micro-jitter
-    const dx = Math.abs(smoothX - (window._lastGazeX || smoothX));
-    const dy = Math.abs(smoothY - (window._lastGazeY || smoothY));
-    if (dx > GAZE_DEADZONE || dy > GAZE_DEADZONE) {
-      window._lastGazeX = smoothX;
-      window._lastGazeY = smoothY;
-      if (onGaze) onGaze(smoothX, smoothY);
-    }
+    // Always dispatch — the smoothing itself suppresses jitter
+    if (onGaze) onGaze(smoothX, smoothY);
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
