@@ -13,27 +13,13 @@ window.EyeTracker = (function () {
   const IRIS_LEFT_CENTER  = 468;
   const IRIS_RIGHT_CENTER = 473;
 
-  // Eye corner landmarks for head-invariant gaze
-  // Left eye (from face's perspective): inner=362, outer=263
-  // Right eye (from face's perspective): inner=33, outer=133
-  const LEFT_EYE_INNER   = 362;
-  const LEFT_EYE_OUTER   = 263;
-  const RIGHT_EYE_INNER  = 133;
-  const RIGHT_EYE_OUTER  = 33;
-
-  // Vertical eye corners for Y-axis gaze
-  const LEFT_EYE_TOP     = 386;
-  const LEFT_EYE_BOTTOM  = 374;
-  const RIGHT_EYE_TOP    = 159;
-  const RIGHT_EYE_BOTTOM = 145;
-
   // ─── Configurable thresholds ───────────────────────────────────────────────
   const EAR_THRESHOLD       = 0.20;  // below this = eye closed
   const BLINK_MIN_MS        = 60;    // min blink duration (ms)
   const BLINK_MAX_MS        = 400;   // max blink (longer = long-close)
   const LONG_CLOSE_MS       = 1000;  // hold closed this long = confirm
   const TRIPLE_BLINK_WINDOW = 1800;  // ms window for 3 blinks
-  const SMOOTH_FACTOR       = 0.30;  // higher = more responsive, lower = more stable
+  const SMOOTH_FACTOR       = 0.35;  // higher = more responsive, lower = more stable
 
   // ─── State ─────────────────────────────────────────────────────────────────
   let faceMesh   = null;
@@ -46,7 +32,7 @@ window.EyeTracker = (function () {
   // Blink state
   let eyeClosed      = false;
   let eyeClosedSince = null;
-  let blinkTimestamps = [];   // timestamps of completed blinks
+  let blinkTimestamps = [];
   let longCloseTimer  = null;
 
   // Callbacks
@@ -84,58 +70,25 @@ window.EyeTracker = (function () {
   }
 
   /**
-   * Compute head-invariant iris position as a ratio within the eye socket.
-   * Returns { rx, ry } in [0,1] where:
-   *   rx=0 means looking fully toward the outer corner, rx=1 = inner corner
-   *   ry=0 means looking up, ry=1 = looking down
-   * This is INDEPENDENT of head position/rotation.
-   */
-  function irisRatio(landmarks, irisIdx, innerIdx, outerIdx, topIdx, bottomIdx) {
-    const iris  = lm(landmarks, irisIdx);
-    const inner = lm(landmarks, innerIdx);
-    const outer = lm(landmarks, outerIdx);
-    const top   = lm(landmarks, topIdx);
-    const bot   = lm(landmarks, bottomIdx);
-
-    // Horizontal: where is the iris between outer and inner corners?
-    const eyeWidth = dist(outer, inner);
-    if (eyeWidth < 0.001) return { rx: 0.5, ry: 0.5 };
-
-    // Project iris onto the outer→inner axis
-    const dx = inner.x - outer.x;
-    const dy = inner.y - outer.y;
-    const t = ((iris.x - outer.x) * dx + (iris.y - outer.y) * dy) / (dx * dx + dy * dy);
-    const rx = Math.max(0, Math.min(1, t));
-
-    // Vertical: where is the iris between top and bottom eyelid?
-    const eyeHeight = dist(top, bot);
-    if (eyeHeight < 0.001) return { rx, ry: 0.5 };
-
-    const dxv = bot.x - top.x;
-    const dyv = bot.y - top.y;
-    const tv = ((iris.x - top.x) * dxv + (iris.y - top.y) * dyv) / (dxv * dxv + dyv * dyv);
-    const ry = Math.max(0, Math.min(1, tv));
-
-    return { rx, ry };
-  }
-
-  /**
-   * Map iris ratios [0,1] to screen pixels using calibration affine coefficients.
+   * Map normalized iris position [0,1] to screen pixels using calibration.
+   * Uses the absolute iris position in the camera frame, which naturally
+   * responds to BOTH head movement and eye movement — the standard approach
+   * for webcam-based AAC systems (similar to WebGazer, GazeRecorder, etc.)
+   *
    * calibData = { ax, ay, az, bx, by, bz } such that:
-   *   screen_x = ax * ratio_x + ay * ratio_y + az
-   *   screen_y = bx * ratio_x + by * ratio_y + bz
+   *   screen_x = ax * iris_x + ay * iris_y + az
+   *   screen_y = bx * iris_x + by * iris_y + bz
    */
-  function mapToScreen(ratioX, ratioY) {
+  function mapToScreen(irisX, irisY) {
     let x, y;
     if (!calibData) {
-      // Fallback: direct linear mapping
-      // Mirrored: looking left (ratio≈1) → right side of screen, etc.
-      x = ratioX * window.innerWidth;
-      y = ratioY * window.innerHeight;
+      // Fallback: direct linear mapping (mirrored horizontally for webcam)
+      x = (1 - irisX) * window.innerWidth;
+      y = irisY * window.innerHeight;
     } else {
       const { ax, ay, az, bx, by, bz } = calibData;
-      x = ax * ratioX + ay * ratioY + az;
-      y = bx * ratioX + by * ratioY + bz;
+      x = ax * irisX + ay * irisY + az;
+      y = bx * irisX + by * irisY + bz;
     }
     // Clamp to screen bounds
     x = Math.max(0, Math.min(window.innerWidth,  x));
@@ -154,10 +107,9 @@ window.EyeTracker = (function () {
 
       // Start long-close timer
       longCloseTimer = setTimeout(() => {
-        // Eyes held closed for LONG_CLOSE_MS → confirm selection
         if (eyeClosed && onConfirm) {
           onConfirm();
-          blinkTimestamps = []; // reset
+          blinkTimestamps = [];
         }
       }, LONG_CLOSE_MS);
 
@@ -168,10 +120,9 @@ window.EyeTracker = (function () {
       clearTimeout(longCloseTimer);
       longCloseTimer = null;
 
-      // Count as a valid blink if duration is in the expected range
+      // Count as valid blink if duration is in expected range
       if (duration >= BLINK_MIN_MS && duration <= BLINK_MAX_MS) {
         blinkTimestamps.push(now);
-        // Keep only recent blinks
         blinkTimestamps = blinkTimestamps.filter(t => now - t <= TRIPLE_BLINK_WINDOW);
 
         if (blinkTimestamps.length >= 3) {
@@ -206,35 +157,38 @@ window.EyeTracker = (function () {
     handleEyeState(avgEAR < EAR_THRESHOLD);
 
     // ── Gaze estimation ────────────────────────────────────────────────────
-    // SKIP gaze updates during blinks — iris landmarks are unreliable when
-    // eyelids are closed, causing the cursor to jump erratically.
+    // SKIP gaze updates when eyes are closed — iris landmarks are unreliable
+    // during blinks, causing the cursor to jump erratically.
     if (eyeClosed) return;
 
-    // Check iris landmarks are available (refineLandmarks:true)
+    // Iris landmarks require refineLandmarks:true
     if (landmarks.length <= IRIS_LEFT_CENTER) return;
 
-    // Compute head-invariant iris ratios for both eyes
-    const leftRatio = irisRatio(
-      landmarks, IRIS_LEFT_CENTER,
-      LEFT_EYE_INNER, LEFT_EYE_OUTER,
-      LEFT_EYE_TOP, LEFT_EYE_BOTTOM
-    );
-    const rightRatio = irisRatio(
-      landmarks, IRIS_RIGHT_CENTER,
-      RIGHT_EYE_INNER, RIGHT_EYE_OUTER,
-      RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM
-    );
+    // Average both iris centers for stability
+    const irisL = lm(landmarks, IRIS_LEFT_CENTER);
+    const irisR = lm(landmarks, IRIS_RIGHT_CENTER);
+    let rawX = (irisL.x + irisR.x) / 2;
+    let rawY = (irisL.y + irisR.y) / 2;
 
-    // Average both eyes for stability
-    const rawRatioX = (leftRatio.rx + rightRatio.rx) / 2;
-    const rawRatioY = (leftRatio.ry + rightRatio.ry) / 2;
+    // Auto-detect pixel vs normalized coordinates from MediaPipe CDN
+    // Normalized values are in [0,1]; pixel values are >> 1
+    if (rawX > 1.5 || rawY > 1.5) {
+      const vw = videoEl.videoWidth  || 640;
+      const vh = videoEl.videoHeight || 480;
+      rawX /= vw;
+      rawY /= vh;
+    }
 
-    // Dispatch raw iris ratios for calibration module
+    // Clamp to [0,1]
+    rawX = Math.max(0, Math.min(1, rawX));
+    rawY = Math.max(0, Math.min(1, rawY));
+
+    // Dispatch raw iris position for calibration module
     document.dispatchEvent(new CustomEvent('eyetracker-raw-iris', {
-      detail: { x: rawRatioX, y: rawRatioY }
+      detail: { x: rawX, y: rawY }
     }));
 
-    const mapped = mapToScreen(rawRatioX, rawRatioY);
+    const mapped = mapToScreen(rawX, rawY);
 
     // Exponential moving average smoothing
     if (smoothX === null) {
