@@ -91,6 +91,11 @@ window.App = (function () {
 
   // ─── App-level EyeTracker handlers ────────────────────────────────────────
   // Extracted so they can be RE-APPLIED after calibration (which overwrites them)
+  let gazeHoveredPhrase = null;
+  let phraseDwellStart  = null;
+  let phraseDwellTimer  = null;
+  const PHRASE_DWELL_MS = 1200;  // slightly faster than keyboard dwell
+
   function wireAppHandlers() {
     EyeTracker.setOnGaze((x, y) => {
       // Move gaze cursor dot on screen
@@ -98,11 +103,88 @@ window.App = (function () {
       gazeDot.style.top  = y + 'px';
       // Pass to keyboard for proximity highlight + dwell
       Keyboard.onGaze(x, y);
+      // Also handle gaze dwell on phrase buttons and suggestions
+      handlePhraseGaze(x, y);
+      handleSuggestionGaze(x, y);
     });
 
     EyeTracker.setOnConfirm(() => {
       Keyboard.onConfirm();
     });
+  }
+
+  // ─── Phrase gaze dwell ──────────────────────────────────────────────────
+  function handlePhraseGaze(x, y) {
+    if (!phrasesPanel) return;
+    const btns = phrasesPanel.querySelectorAll('.phrase-btn');
+    let nearest = null;
+    let minDist = 60; // px threshold
+
+    btns.forEach(btn => {
+      const rect = btn.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < minDist) { minDist = d; nearest = btn; }
+    });
+
+    if (nearest !== gazeHoveredPhrase) {
+      // Clear old
+      if (gazeHoveredPhrase) gazeHoveredPhrase.classList.remove('gaze-hover');
+      clearTimeout(phraseDwellTimer);
+      phraseDwellTimer = null;
+      phraseDwellStart = null;
+
+      gazeHoveredPhrase = nearest;
+      if (nearest) {
+        nearest.classList.add('gaze-hover');
+        phraseDwellStart = Date.now();
+        phraseDwellTimer = setTimeout(() => {
+          if (gazeHoveredPhrase === nearest) {
+            nearest.click();
+            gazeHoveredPhrase.classList.remove('gaze-hover');
+            gazeHoveredPhrase = null;
+          }
+        }, PHRASE_DWELL_MS);
+      }
+    }
+  }
+
+  // ─── Suggestion gaze dwell ──────────────────────────────────────────────
+  let gazeHoveredSugg = null;
+  let suggDwellTimer  = null;
+
+  function handleSuggestionGaze(x, y) {
+    if (!suggestionsRow) return;
+    const btns = suggestionsRow.querySelectorAll('.suggestion-btn');
+    let nearest = null;
+    let minDist = 60;
+
+    btns.forEach(btn => {
+      const rect = btn.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < minDist) { minDist = d; nearest = btn; }
+    });
+
+    if (nearest !== gazeHoveredSugg) {
+      if (gazeHoveredSugg) gazeHoveredSugg.classList.remove('gaze-hover');
+      clearTimeout(suggDwellTimer);
+      suggDwellTimer = null;
+
+      gazeHoveredSugg = nearest;
+      if (nearest) {
+        nearest.classList.add('gaze-hover');
+        suggDwellTimer = setTimeout(() => {
+          if (gazeHoveredSugg === nearest) {
+            nearest.click();
+            gazeHoveredSugg.classList.remove('gaze-hover');
+            gazeHoveredSugg = null;
+          }
+        }, PHRASE_DWELL_MS);
+      }
+    }
   }
 
   // ─── Eye tracker startup ──────────────────────────────────────────────────

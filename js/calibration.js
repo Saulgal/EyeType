@@ -6,7 +6,7 @@ window.Calibration = (function () {
   const STORAGE_KEY   = 'eyetype_calibration';
   // Increment this whenever the calibration data format or coordinate system changes.
   // Any saved calibration with a different version will be automatically discarded.
-  const CALIB_VERSION = 3;
+  const CALIB_VERSION = 4;
   const NUM_DOTS      = 9;
   const DOTS_PER_ROW  = 3;
   const MARGIN_PCT    = 0.10;  // 10% margin from edge

@@ -51,11 +51,15 @@
   transition: all var(--transition);
   flex-shrink: 0;
 }
-.suggestion-btn:hover {
+.suggestion-btn:hover,
+.suggestion-btn.gaze-hover {
   background: rgba(0, 229, 204, 0.15);
   border-color: var(--border-accent);
   box-shadow: 0 0 12px var(--accent-glow);
   transform: translateY(-1px);
+}
+.suggestion-btn.gaze-hover {
+  box-shadow: 0 0 16px var(--accent), 0 0 4px var(--accent-glow);
 }
 
 /* ── Keyboard wrapper ────────────────────────────────────────────────────── */

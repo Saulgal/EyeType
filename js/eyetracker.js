@@ -13,19 +13,33 @@ window.EyeTracker = (function () {
   const IRIS_LEFT_CENTER  = 468;
   const IRIS_RIGHT_CENTER = 473;
 
+  // Eye corner landmarks for head-invariant gaze
+  // Left eye (from face's perspective): inner=362, outer=263
+  // Right eye (from face's perspective): inner=33, outer=133
+  const LEFT_EYE_INNER   = 362;
+  const LEFT_EYE_OUTER   = 263;
+  const RIGHT_EYE_INNER  = 133;
+  const RIGHT_EYE_OUTER  = 33;
+
+  // Vertical eye corners for Y-axis gaze
+  const LEFT_EYE_TOP     = 386;
+  const LEFT_EYE_BOTTOM  = 374;
+  const RIGHT_EYE_TOP    = 159;
+  const RIGHT_EYE_BOTTOM = 145;
+
   // ─── Configurable thresholds ───────────────────────────────────────────────
   const EAR_THRESHOLD       = 0.20;  // below this = eye closed
   const BLINK_MIN_MS        = 60;    // min blink duration (ms)
   const BLINK_MAX_MS        = 400;   // max blink (longer = long-close)
   const LONG_CLOSE_MS       = 1000;  // hold closed this long = confirm
   const TRIPLE_BLINK_WINDOW = 1800;  // ms window for 3 blinks
-  const SMOOTH_FACTOR       = 0.40;  // higher = more responsive, less filtered
+  const SMOOTH_FACTOR       = 0.30;  // higher = more responsive, lower = more stable
 
   // ─── State ─────────────────────────────────────────────────────────────────
   let faceMesh   = null;
   let camera     = null;
   let videoEl    = null;
-  let calibData  = null;   // { coeffX, coeffY } from Calibration
+  let calibData  = null;   // { ax, ay, az, bx, by, bz } from Calibration
   let smoothX    = null;
   let smoothY    = null;
 
@@ -55,7 +69,6 @@ window.EyeTracker = (function () {
 
   /**
    * Eye Aspect Ratio:  (||P2-P6|| + ||P3-P5||) / (2 * ||P1-P4||)
-   * Normalized coords, so no need for pixel conversion.
    */
   function computeEAR(landmarks, eye) {
     const p1 = lm(landmarks, eye.p1);
@@ -71,24 +84,60 @@ window.EyeTracker = (function () {
   }
 
   /**
-   * Map a raw iris normalized position [0,1] to screen pixels
-   * using the calibration affine coefficients.
-   * calibData = { ax, ay, az, bx, by, bz } such that:
-   *   screen_x = ax * iris_x + ay * iris_y + az
-   *   screen_y = bx * iris_x + by * iris_y + bz
+   * Compute head-invariant iris position as a ratio within the eye socket.
+   * Returns { rx, ry } in [0,1] where:
+   *   rx=0 means looking fully toward the outer corner, rx=1 = inner corner
+   *   ry=0 means looking up, ry=1 = looking down
+   * This is INDEPENDENT of head position/rotation.
    */
-  function mapToScreen(irisX, irisY) {
+  function irisRatio(landmarks, irisIdx, innerIdx, outerIdx, topIdx, bottomIdx) {
+    const iris  = lm(landmarks, irisIdx);
+    const inner = lm(landmarks, innerIdx);
+    const outer = lm(landmarks, outerIdx);
+    const top   = lm(landmarks, topIdx);
+    const bot   = lm(landmarks, bottomIdx);
+
+    // Horizontal: where is the iris between outer and inner corners?
+    const eyeWidth = dist(outer, inner);
+    if (eyeWidth < 0.001) return { rx: 0.5, ry: 0.5 };
+
+    // Project iris onto the outer→inner axis
+    const dx = inner.x - outer.x;
+    const dy = inner.y - outer.y;
+    const t = ((iris.x - outer.x) * dx + (iris.y - outer.y) * dy) / (dx * dx + dy * dy);
+    const rx = Math.max(0, Math.min(1, t));
+
+    // Vertical: where is the iris between top and bottom eyelid?
+    const eyeHeight = dist(top, bot);
+    if (eyeHeight < 0.001) return { rx, ry: 0.5 };
+
+    const dxv = bot.x - top.x;
+    const dyv = bot.y - top.y;
+    const tv = ((iris.x - top.x) * dxv + (iris.y - top.y) * dyv) / (dxv * dxv + dyv * dyv);
+    const ry = Math.max(0, Math.min(1, tv));
+
+    return { rx, ry };
+  }
+
+  /**
+   * Map iris ratios [0,1] to screen pixels using calibration affine coefficients.
+   * calibData = { ax, ay, az, bx, by, bz } such that:
+   *   screen_x = ax * ratio_x + ay * ratio_y + az
+   *   screen_y = bx * ratio_x + by * ratio_y + bz
+   */
+  function mapToScreen(ratioX, ratioY) {
     let x, y;
     if (!calibData) {
-      // Fallback: direct linear mapping (iris at center → screen center)
-      x = (1 - irisX) * window.innerWidth;   // mirror horizontally
-      y = irisY * window.innerHeight;
+      // Fallback: direct linear mapping
+      // Mirrored: looking left (ratio≈1) → right side of screen, etc.
+      x = ratioX * window.innerWidth;
+      y = ratioY * window.innerHeight;
     } else {
       const { ax, ay, az, bx, by, bz } = calibData;
-      x = ax * irisX + ay * irisY + az;
-      y = bx * irisX + by * irisY + bz;
+      x = ax * ratioX + ay * ratioY + az;
+      y = bx * ratioX + by * ratioY + bz;
     }
-    // Clamp to screen bounds — protects against bad calibration data
+    // Clamp to screen bounds
     x = Math.max(0, Math.min(window.innerWidth,  x));
     y = Math.max(0, Math.min(window.innerHeight, y));
     return { x, y };
@@ -119,10 +168,10 @@ window.EyeTracker = (function () {
       clearTimeout(longCloseTimer);
       longCloseTimer = null;
 
+      // Count as a valid blink if duration is in the expected range
       if (duration >= BLINK_MIN_MS && duration <= BLINK_MAX_MS) {
-        // Valid blink
         blinkTimestamps.push(now);
-        // Remove blinks outside the triple-blink window
+        // Keep only recent blinks
         blinkTimestamps = blinkTimestamps.filter(t => now - t <= TRIPLE_BLINK_WINDOW);
 
         if (blinkTimestamps.length >= 3) {
@@ -157,37 +206,37 @@ window.EyeTracker = (function () {
     handleEyeState(avgEAR < EAR_THRESHOLD);
 
     // ── Gaze estimation ────────────────────────────────────────────────────
-    // Iris landmarks require refineLandmarks:true. Some CDN versions return
-    // pixel coordinates (e.g. x=320 for 640px wide), others return normalized
-    // [0,1]. We auto-detect and normalise.
-    if (landmarks.length <= IRIS_LEFT_CENTER) return; // iris not available
+    // SKIP gaze updates during blinks — iris landmarks are unreliable when
+    // eyelids are closed, causing the cursor to jump erratically.
+    if (eyeClosed) return;
 
-    const irisL = lm(landmarks, IRIS_LEFT_CENTER);
-    const irisR = lm(landmarks, IRIS_RIGHT_CENTER);
-    let rawIrisX = (irisL.x + irisR.x) / 2;
-    let rawIrisY = (irisL.y + irisR.y) / 2;
+    // Check iris landmarks are available (refineLandmarks:true)
+    if (landmarks.length <= IRIS_LEFT_CENTER) return;
 
-    // If x or y > 1.5 the coords are in pixel space — normalise by video size
-    if (rawIrisX > 1.5 || rawIrisY > 1.5) {
-      const vw = videoEl.videoWidth  || 640;
-      const vh = videoEl.videoHeight || 480;
-      rawIrisX /= vw;
-      rawIrisY /= vh;
-    }
+    // Compute head-invariant iris ratios for both eyes
+    const leftRatio = irisRatio(
+      landmarks, IRIS_LEFT_CENTER,
+      LEFT_EYE_INNER, LEFT_EYE_OUTER,
+      LEFT_EYE_TOP, LEFT_EYE_BOTTOM
+    );
+    const rightRatio = irisRatio(
+      landmarks, IRIS_RIGHT_CENTER,
+      RIGHT_EYE_INNER, RIGHT_EYE_OUTER,
+      RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM
+    );
 
-    // Clamp to valid range just in case
-    rawIrisX = Math.max(0, Math.min(1, rawIrisX));
-    rawIrisY = Math.max(0, Math.min(1, rawIrisY));
+    // Average both eyes for stability
+    const rawRatioX = (leftRatio.rx + rightRatio.rx) / 2;
+    const rawRatioY = (leftRatio.ry + rightRatio.ry) / 2;
 
-    // Dispatch raw iris position for calibration module
+    // Dispatch raw iris ratios for calibration module
     document.dispatchEvent(new CustomEvent('eyetracker-raw-iris', {
-      detail: { x: rawIrisX, y: rawIrisY }
+      detail: { x: rawRatioX, y: rawRatioY }
     }));
 
-    const mapped = mapToScreen(rawIrisX, rawIrisY);
+    const mapped = mapToScreen(rawRatioX, rawRatioY);
 
-    // Exponential moving average smoothing — handles jitter without a dead zone
-    // (dead zones cause the cursor to freeze when movement is small)
+    // Exponential moving average smoothing
     if (smoothX === null) {
       smoothX = mapped.x;
       smoothY = mapped.y;
@@ -196,7 +245,7 @@ window.EyeTracker = (function () {
       smoothY += SMOOTH_FACTOR * (mapped.y - smoothY);
     }
 
-    // Always dispatch — the smoothing itself suppresses jitter
+    // Always dispatch — smoothing handles jitter
     if (onGaze) onGaze(smoothX, smoothY);
   }
 

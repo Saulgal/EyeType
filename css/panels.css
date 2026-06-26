@@ -54,11 +54,15 @@
   width: 100%;
   font-family: inherit;
 }
-.phrase-btn:hover {
+.phrase-btn:hover,
+.phrase-btn.gaze-hover {
   background: var(--bg-key-hover);
   border-color: var(--border-accent);
   box-shadow: 0 0 10px var(--accent-glow);
   transform: translateX(2px);
+}
+.phrase-btn.gaze-hover {
+  box-shadow: 0 0 16px var(--accent), 0 0 4px var(--accent-glow);
 }
 .phrase-emoji {
   font-size: 1rem;
