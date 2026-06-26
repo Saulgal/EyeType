@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="description" content="EyeType — Eye-controlled AAC keyboard for users with paralysis. Type and speak using only your eyes." />
+  <meta name="theme-color" content="#080c18" />
+  <title>EyeType — Eye-Controlled Communication</title>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/keyboard.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+
+  <!-- MediaPipe Face Mesh (CDN — internet required on first load; cached thereafter) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<!-- Hidden webcam video element (used by MediaPipe, not shown to user) -->
+<video id="webcam" autoplay playsinline muted></video>
+
+<!-- Gaze cursor dot (follows iris) -->
+<div id="gaze-dot" aria-hidden="true"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 1: Loading                                                      -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div id="loading-screen" class="screen visible">
+  <div class="loading-logo">Eye<span>Type</span></div>
+  <div class="loading-spinner"></div>
+  <p id="loading-title">Loading AI Models…</p>
+  <p id="loading-hint">Please allow camera access when prompted.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 2: Calibration                                                  -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div id="calibration-screen" class="screen">
+  <div id="calib-header">
+    <h1 id="calib-title">Gaze Calibration</h1>
+    <p id="calib-instruction">Look at each dot and blink 3× rapidly or hold eyes closed 1 second to confirm.</p>
+    <p id="calib-progress"></p>
+  </div>
+
+  <!-- The calibration dot moves via JS positioning -->
+  <div id="calib-dot"></div>
+
+  <!-- Bottom actions (skip if saved calibration exists) -->
+  <div id="calib-actions">
+    <button id="btn-skip-calib" class="calib-action-btn">Skip (use saved)</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 3: Main App                                                      -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div id="app-screen" class="screen">
+
+  <!-- Header -->
+  <header id="app-header">
+    <span id="app-title">EyeType</span>
+    <div class="header-right">
+      <span id="eye-status" class="eye-status init">⏳ Initializing</span>
+      <button id="btn-settings" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- Body: sidebar + main column -->
+  <div id="app-body">
+
+    <!-- ── Left sidebar: quick phrases ───────────────────────────────── -->
+    <aside id="sidebar">
+      <div id="phrases-heading">Quick Phrases</div>
+      <div id="phrases-panel" role="list" aria-label="Quick phrases"></div>
+    </aside>
+
+    <!-- ── Main column ────────────────────────────────────────────────── -->
+    <div id="main-col">
+
+      <!-- Text output -->
+      <section id="output-section">
+        <div id="text-output" role="textbox" aria-label="Composed message" aria-live="polite"></div>
+        <span id="text-placeholder">Your message appears here…</span>
+        <div class="output-actions">
+          <button id="btn-speak" class="action-btn" title="Read aloud">🔊 Speak</button>
+          <button id="btn-clear" class="action-btn" title="Clear message">🗑 Clear</button>
+        </div>
+      </section>
+
+      <!-- Word suggestions -->
+      <section id="suggestions-section">
+        <span id="suggestions-label">Suggestions</span>
+        <div id="suggestions-row" role="list" aria-label="Word suggestions"></div>
+      </section>
+
+      <!-- Keyboard -->
+      <section id="keyboard-section">
+        <div id="keyboard-container" role="group" aria-label="On-screen keyboard"></div>
+      </section>
+
+    </div><!-- /main-col -->
+  </div><!-- /app-body -->
+</div><!-- /app-screen -->
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Settings Modal                                                          -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div id="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
+  <div class="settings-panel">
+    <div class="settings-header">
+      <span class="settings-title">⚙ Settings</span>
+      <button id="settings-close">✕ Close</button>
+    </div>
+
+    <!-- Language -->
+    <div class="settings-section">
+      <label class="settings-label" id="setting-lang">Language</label>
+      <div id="lang-selector" role="group" aria-labelledby="setting-lang"></div>
+    </div>
+
+    <!-- Voice Volume -->
+    <div class="settings-section">
+      <label class="settings-label" id="setting-vol">Volume</label>
+      <div class="settings-row">
+        <span style="font-size:1rem">🔈</span>
+        <input id="vol-slider" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+        <span style="font-size:1rem">🔊</span>
+      </div>
+    </div>
+
+    <!-- Voice Speed -->
+    <div class="settings-section">
+      <label class="settings-label" id="setting-rate">Speed</label>
+      <div class="settings-row">
+        <span style="font-size:0.8rem;color:var(--text-muted)">🐢</span>
+        <input id="rate-slider" type="range" min="0.3" max="2" step="0.05" value="0.9" aria-label="Speech speed" />
+        <span style="font-size:0.8rem;color:var(--text-muted)">🐇</span>
+      </div>
+    </div>
+
+    <!-- Dwell Time -->
+    <div class="settings-section">
+      <label class="settings-label" id="setting-dwell">Dwell time (ms)</label>
+      <div class="settings-row">
+        <span style="font-size:0.8rem;color:var(--text-muted)">Fast</span>
+        <input id="dwell-slider" type="range" min="600" max="4000" step="100" value="1500" aria-label="Dwell time" />
+        <span style="font-size:0.8rem;color:var(--text-muted)">Slow</span>
+      </div>
+    </div>
+
+    <!-- Input Mode -->
+    <div class="settings-section">
+      <label class="settings-label" for="mode-select" id="setting-mode">Input Mode</label>
+      <div class="settings-row">
+        <select id="mode-select" aria-label="Input mode">
+          <option value="dwell">Dwell</option>
+          <option value="blink">Blink</option>
+          <option value="both" selected>Both</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Recalibrate -->
+    <div class="settings-section">
+      <button id="btn-recalibrate">↺ Recalibrate</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Application JS (load order matters) ─────────────────────────────── -->
+<script src="js/i18n.js"></script>
+<script src="js/tts.js"></script>
+<script src="js/words.js"></script>
+<script src="js/eyetracker.js"></script>
+<script src="js/calibration.js"></script>
+<script src="js/keyboard.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,214 @@
+/* css/keyboard.css — On-screen keyboard keys, dwell ring, gaze states */
+
+/* ── Main content area layout ───────────────────────────────────────────── */
+#main-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Suggestions row ─────────────────────────────────────────────────────── */
+#suggestions-section {
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+#suggestions-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+#suggestions-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#suggestions-row::-webkit-scrollbar { display: none; }
+.suggestion-btn {
+  background: var(--bg-key);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.suggestion-btn:hover {
+  background: rgba(0, 229, 204, 0.15);
+  border-color: var(--border-accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+/* ── Keyboard wrapper ────────────────────────────────────────────────────── */
+#keyboard-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 10px;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+#keyboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+}
+
+/* ── Keyboard row ────────────────────────────────────────────────────────── */
+.kb-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── Individual key ─────────────────────────────────────────────────────── */
+.kb-key {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 56px;
+  flex: 1;
+  max-width: 72px;
+  background: var(--bg-key);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: var(--shadow-key);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    transform var(--transition),
+    box-shadow var(--transition);
+  overflow: hidden;
+}
+
+/* Top highlight line on each key (gives 3D feel) */
+.kb-key::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+}
+
+.kb-key:hover,
+.kb-key.hovered {
+  background: var(--bg-key-hover);
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 2px var(--accent-glow), var(--shadow-key);
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
+.kb-key.selected {
+  background: var(--bg-key-select) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 20px var(--accent-glow) !important;
+  transform: scale(0.94) translateY(0) !important;
+  animation: key-flash 0.3s ease;
+}
+
+@keyframes key-flash {
+  0%   { background: var(--accent); box-shadow: 0 0 40px var(--accent); }
+  100% { background: var(--bg-key-select); }
+}
+
+/* ── Key label ──────────────────────────────────────────────────────────── */
+.kb-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  z-index: 1;
+  pointer-events: none;
+  transition: color var(--transition);
+}
+.kb-key.hovered .kb-label { color: var(--accent); }
+.kb-key.selected .kb-label { color: #000; }
+
+/* Special keys */
+.key-space {
+  max-width: 260px;
+  flex: 3;
+}
+.key-back, .key-clear {
+  max-width: 80px;
+  background: rgba(124, 58, 237, 0.1);
+  border-color: var(--purple-glow);
+}
+.key-back .kb-label, .key-clear .kb-label { color: #a78bfa; }
+.key-back:hover, .key-clear:hover {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.5);
+  box-shadow: 0 0 0 2px var(--purple-glow), var(--shadow-key);
+}
+
+/* ── Dwell Ring (SVG) ───────────────────────────────────────────────────── */
+.dwell-ring {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  pointer-events: none;
+  z-index: 2;
+  overflow: visible;
+}
+.dwell-ring circle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  /* Animate counter-clockwise from top */
+  transform: rotate(-90deg);
+  transform-origin: 18px 18px;
+  transition: stroke-dashoffset 0.05s linear;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+/* ── Responsive: scale down keys on small screens ─────────────────────── */
+@media (max-width: 640px) {
+  .kb-key {
+    min-width: 30px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+  }
+  .kb-label { font-size: 0.85rem; }
+  .kb-row { gap: 4px; }
+  #keyboard-container { gap: 5px; }
+  .key-space { max-width: 180px; }
+  #keyboard-section { padding: 8px 6px; }
+  .suggestion-btn { font-size: 0.8rem; padding: 5px 10px; }
+}
+
+@media (max-width: 400px) {
+  .kb-key { min-width: 26px; height: 40px; }
+  .kb-label { font-size: 0.75rem; }
+  .kb-row { gap: 3px; }
+}

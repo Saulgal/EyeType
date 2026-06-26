@@ -1,0 +1,332 @@
+// js/i18n.js — Internationalization & Language Data
+// Designed to be extensible: call I18n.addLanguage(code, config) to add new languages.
+// Word lists are embedded (no fetch needed) so the app works on file:// protocol.
+
+window.I18n = (function () {
+  'use strict';
+
+  const languages = {
+    en: {
+      name: 'English',
+      flag: '🇺🇸',
+      voiceLang: 'en-US',
+      rtl: false,
+      labels: {
+        appTitle: 'EyeType',
+        speak: '🔊 Speak',
+        clear: '🗑 Clear',
+        settings: '⚙',
+        suggestions: 'Suggestions',
+        quickPhrases: 'Quick Phrases',
+        eyeTracking: 'Eye Tracking',
+        loading: 'Loading AI Models…',
+        loadingHint: 'Please allow camera access when prompted.',
+        calibrationTitle: 'Gaze Calibration',
+        calibrationInstructions: 'Look at each dot and blink 3× rapidly or hold eyes closed 1 second to confirm.',
+        calibrationComplete: 'Calibration complete!',
+        calibrationDot: 'Dot',
+        of: 'of',
+        blinkToConfirm: 'Blink to confirm',
+        blinkCount: 'Blinks',
+        recalibrate: '↺ Recalibrate',
+        close: '✕ Close',
+        language: 'Language',
+        volume: 'Volume',
+        speed: 'Speed',
+        dwellTime: 'Dwell time (ms)',
+        inputMode: 'Input Mode',
+        modeDwell: 'Dwell',
+        modeBlink: 'Blink',
+        modeBoth: 'Both',
+        statusTracking: '👁 Tracking',
+        statusLost: '⚠ Face lost',
+        statusInit: '⏳ Initializing',
+        textPlaceholder: 'Your message appears here…',
+        skipCalibration: 'Skip (use saved)',
+        saveCalibration: 'Save & Continue',
+        noCamera: 'No camera found. Please connect a webcam.',
+        permissionDenied: 'Camera permission denied. Please allow access and refresh.',
+        keyboardMode: 'Keyboard',
+        backspace: '⌫',
+        space: 'Space',
+        enter: '↵',
+        clear_word: '⌦',
+      },
+      quickPhrases: [
+        { text: 'Yes', emoji: '✅' },
+        { text: 'No', emoji: '❌' },
+        { text: 'Help!', emoji: '🆘' },
+        { text: 'Water', emoji: '💧' },
+        { text: 'Pain', emoji: '😣' },
+        { text: 'Stop', emoji: '✋' },
+        { text: 'More', emoji: '➕' },
+        { text: 'Thank you', emoji: '🙏' },
+        { text: 'Wait', emoji: '⏳' },
+        { text: 'I need help', emoji: '💭' },
+        { text: 'Call a nurse', emoji: '👩‍⚕️' },
+        { text: 'Repeat please', emoji: '🔁' },
+        { text: "I'm tired", emoji: '😴' },
+        { text: 'I love you', emoji: '❤️' },
+        { text: 'Good morning', emoji: '🌅' },
+        { text: 'Good night', emoji: '🌙' },
+        { text: 'I am hungry', emoji: '🍽️' },
+        { text: 'Too cold', emoji: '🥶' },
+        { text: 'Too hot', emoji: '🥵' },
+        { text: 'Call my family', emoji: '👨‍👩‍👧' },
+      ],
+      words: [
+        'a','able','about','above','accept','across','act','action','add','after',
+        'again','age','ago','air','all','allow','almost','along','already','also',
+        'although','always','am','an','and','another','answer','any','area','are',
+        'around','as','ask','at','away','back','bad','be','because','been',
+        'before','began','behind','believe','best','better','between','big','both','bring',
+        'build','but','by','call','came','can','care','carry','cause','change',
+        'child','children','city','clear','close','cold','come','could','country','cut',
+        'day','days','did','different','do','does','done','down','during','each',
+        'early','eat','end','enough','even','every','example','eye','face','fact',
+        'fall','family','far','feel','feet','few','find','first','follow','food',
+        'for','form','found','friend','from','get','give','go','good','got',
+        'great','group','grow','had','hand','have','he','head','hear','heart',
+        'help','her','here','high','him','his','home','hot','house','how',
+        'human','hurt','i','idea','if','important','in','into','it','its',
+        'just','keep','kind','know','large','last','leave','let','life','light',
+        'like','line','list','listen','little','live','long','look','love','made',
+        'make','man','many','may','me','mean','might','mind','more','morning',
+        'most','move','much','my','name','need','never','new','next','night',
+        'no','not','now','number','of','off','often','old','on','one',
+        'only','open','or','other','our','out','over','own','pain','part',
+        'people','place','plan','play','please','point','put','read','right','room',
+        'run','same','say','see','seem','she','show','since','small','so',
+        'some','something','sometimes','soon','sorry','stand','start','still','stop','story',
+        'such','take','talk','tell','thank','than','that','the','their','them',
+        'then','there','these','they','thing','think','this','those','thought','through',
+        'time','to','together','too','took','turn','under','until','up','use',
+        'very','wait','want','was','water','way','we','well','went','were',
+        'what','when','where','which','while','who','why','will','with','work',
+        'world','would','write','year','yes','yet','you','your',
+      ],
+    },
+
+    'pt-BR': {
+      name: 'Português',
+      flag: '🇧🇷',
+      voiceLang: 'pt-BR',
+      rtl: false,
+      labels: {
+        appTitle: 'EyeType',
+        speak: '🔊 Falar',
+        clear: '🗑 Limpar',
+        settings: '⚙',
+        suggestions: 'Sugestões',
+        quickPhrases: 'Frases Rápidas',
+        eyeTracking: 'Rastreamento',
+        loading: 'Carregando modelos de IA…',
+        loadingHint: 'Permita o acesso à câmera quando solicitado.',
+        calibrationTitle: 'Calibração do Olhar',
+        calibrationInstructions: 'Olhe para cada ponto e pisque 3× rapidamente ou mantenha os olhos fechados por 1 segundo para confirmar.',
+        calibrationComplete: 'Calibração concluída!',
+        calibrationDot: 'Ponto',
+        of: 'de',
+        blinkToConfirm: 'Pisque para confirmar',
+        blinkCount: 'Piscadas',
+        recalibrate: '↺ Recalibrar',
+        close: '✕ Fechar',
+        language: 'Idioma',
+        volume: 'Volume',
+        speed: 'Velocidade',
+        dwellTime: 'Tempo de fixação (ms)',
+        inputMode: 'Modo de Entrada',
+        modeDwell: 'Fixação',
+        modeBlink: 'Piscar',
+        modeBoth: 'Ambos',
+        statusTracking: '👁 Rastreando',
+        statusLost: '⚠ Rosto perdido',
+        statusInit: '⏳ Iniciando',
+        textPlaceholder: 'Sua mensagem aparece aqui…',
+        skipCalibration: 'Pular (usar salvo)',
+        saveCalibration: 'Salvar e Continuar',
+        noCamera: 'Câmera não encontrada. Conecte uma webcam.',
+        permissionDenied: 'Permissão de câmera negada. Permita o acesso e atualize.',
+        keyboardMode: 'Teclado',
+        backspace: '⌫',
+        space: 'Espaço',
+        enter: '↵',
+        clear_word: '⌦',
+      },
+      quickPhrases: [
+        { text: 'Sim', emoji: '✅' },
+        { text: 'Não', emoji: '❌' },
+        { text: 'Socorro!', emoji: '🆘' },
+        { text: 'Água', emoji: '💧' },
+        { text: 'Dor', emoji: '😣' },
+        { text: 'Pare', emoji: '✋' },
+        { text: 'Mais', emoji: '➕' },
+        { text: 'Obrigado', emoji: '🙏' },
+        { text: 'Espere', emoji: '⏳' },
+        { text: 'Preciso de ajuda', emoji: '💭' },
+        { text: 'Chame a enfermeira', emoji: '👩‍⚕️' },
+        { text: 'Repita por favor', emoji: '🔁' },
+        { text: 'Estou cansado', emoji: '😴' },
+        { text: 'Te amo', emoji: '❤️' },
+        { text: 'Bom dia', emoji: '🌅' },
+        { text: 'Boa noite', emoji: '🌙' },
+        { text: 'Estou com fome', emoji: '🍽️' },
+        { text: 'Estou com frio', emoji: '🥶' },
+        { text: 'Estou com calor', emoji: '🥵' },
+        { text: 'Chame minha família', emoji: '👨‍👩‍👧' },
+      ],
+      words: [
+        'a','acordo','agora','água','ainda','ajuda','algo','alguém','além','ali',
+        'amor','ano','antes','ao','aos','aqui','as','assim','até','ação',
+        'bem','boa','bom','cada','caminho','cansado','casa','caso','causa','certo',
+        'chamo','cidade','claro','com','como','coisa','criança','da','dar','das',
+        'de','dei','depois','dia','dias','do','dor','dos','e','ela',
+        'elas','ele','eles','em','então','entre','era','essa','esse','estas',
+        'este','estou','eu','falar','fazer','faz','família','fiz','foi','forma',
+        'frio','grande','hoje','homem','hora','isto','isso','já','lhe','logo',
+        'lugar','mas','me','mesmo','meu','minha','muito','mundo','na','não',
+        'nas','nem','nos','nós','nunca','o','obrigado','os','ou','outra',
+        'outro','para','parte','pedir','pela','pelo','pelos','pelas','pessoas','pode',
+        'por','porque','preciso','primeiro','que','quem','quando','quase','quero','se',
+        'sei','sem','sempre','ser','sim','só','sobre','sua','suas','seu',
+        'seus','tal','também','te','tem','tempo','ter','tinha','tudo','tu',
+        'um','uma','vez','vida','você','vocês','vou','é','água','amor',
+        'família','fome','frio','calor','ajuda','dor','cansado','feliz','triste','bem',
+      ],
+    },
+
+    es: {
+      name: 'Español',
+      flag: '🇪🇸',
+      voiceLang: 'es-ES',
+      rtl: false,
+      labels: {
+        appTitle: 'EyeType',
+        speak: '🔊 Hablar',
+        clear: '🗑 Borrar',
+        settings: '⚙',
+        suggestions: 'Sugerencias',
+        quickPhrases: 'Frases Rápidas',
+        eyeTracking: 'Seguimiento',
+        loading: 'Cargando modelos de IA…',
+        loadingHint: 'Permita el acceso a la cámara cuando se solicite.',
+        calibrationTitle: 'Calibración de Mirada',
+        calibrationInstructions: 'Mire cada punto y parpadee 3× rápidamente o mantenga los ojos cerrados 1 segundo para confirmar.',
+        calibrationComplete: '¡Calibración completa!',
+        calibrationDot: 'Punto',
+        of: 'de',
+        blinkToConfirm: 'Parpadee para confirmar',
+        blinkCount: 'Parpadeos',
+        recalibrate: '↺ Recalibrar',
+        close: '✕ Cerrar',
+        language: 'Idioma',
+        volume: 'Volumen',
+        speed: 'Velocidad',
+        dwellTime: 'Tiempo de fijación (ms)',
+        inputMode: 'Modo de entrada',
+        modeDwell: 'Fijación',
+        modeBlink: 'Parpadeo',
+        modeBoth: 'Ambos',
+        statusTracking: '👁 Siguiendo',
+        statusLost: '⚠ Cara perdida',
+        statusInit: '⏳ Iniciando',
+        textPlaceholder: 'Tu mensaje aparece aquí…',
+        skipCalibration: 'Omitir (usar guardado)',
+        saveCalibration: 'Guardar y Continuar',
+        noCamera: 'Cámara no encontrada. Conecte una webcam.',
+        permissionDenied: 'Permiso de cámara denegado. Permita el acceso y actualice.',
+        keyboardMode: 'Teclado',
+        backspace: '⌫',
+        space: 'Espacio',
+        enter: '↵',
+        clear_word: '⌦',
+      },
+      quickPhrases: [
+        { text: 'Sí', emoji: '✅' },
+        { text: 'No', emoji: '❌' },
+        { text: '¡Ayuda!', emoji: '🆘' },
+        { text: 'Agua', emoji: '💧' },
+        { text: 'Dolor', emoji: '😣' },
+        { text: 'Para', emoji: '✋' },
+        { text: 'Más', emoji: '➕' },
+        { text: 'Gracias', emoji: '🙏' },
+        { text: 'Espera', emoji: '⏳' },
+        { text: 'Necesito ayuda', emoji: '💭' },
+        { text: 'Llama a enfermera', emoji: '👩‍⚕️' },
+        { text: 'Repite por favor', emoji: '🔁' },
+        { text: 'Estoy cansado', emoji: '😴' },
+        { text: 'Te quiero', emoji: '❤️' },
+        { text: 'Buenos días', emoji: '🌅' },
+        { text: 'Buenas noches', emoji: '🌙' },
+        { text: 'Tengo hambre', emoji: '🍽️' },
+        { text: 'Tengo frío', emoji: '🥶' },
+        { text: 'Tengo calor', emoji: '🥵' },
+        { text: 'Llama a mi familia', emoji: '👨‍👩‍👧' },
+      ],
+      words: [
+        'a','agua','ahora','al','algo','alguien','allí','amor','año','antes',
+        'así','ayuda','bien','bueno','cada','calor','camino','casa','causa','ciudad',
+        'claro','como','con','contra','cuando','de','decir','del','después','día',
+        'donde','durante','e','el','ella','ellas','ellos','en','entre','era',
+        'es','esa','ese','eso','esta','este','esto','familia','forma','frío',
+        'fue','gran','hambre','hay','hombre','hora','la','las','le','les',
+        'lo','los','más','me','mi','mientras','mismo','mucho','muy','ni',
+        'no','nos','nuestro','o','otra','otro','para','parte','pero','persona',
+        'poco','por','porque','primer','que','quien','quiero','se','ser','si',
+        'sin','sobre','su','sus','también','tan','te','tiene','todo','tu',
+        'un','una','uno','usted','vez','vida','y','ya','yo','sí',
+        'dolor','cansado','feliz','triste','bien','mal','agua','amor','familia','ayuda',
+      ],
+    },
+  };
+
+  let currentCode = localStorage.getItem('eyetype_language') || 'en';
+  if (!languages[currentCode]) currentCode = 'en';
+
+  const api = {
+    /** Translate a label key for the current language */
+    t(key) {
+      const lang = languages[currentCode];
+      return (lang && lang.labels[key]) || (languages['en'].labels[key]) || key;
+    },
+
+    /** Set active language and persist */
+    setLanguage(code) {
+      if (languages[code]) {
+        currentCode = code;
+        localStorage.setItem('eyetype_language', code);
+        document.dispatchEvent(new CustomEvent('languagechange', { detail: { code } }));
+      }
+    },
+
+    /** Get the current language configuration object */
+    getCurrentLanguage() {
+      return languages[currentCode];
+    },
+
+    /** Return current language code */
+    get currentCode() {
+      return currentCode;
+    },
+
+    /** Return array of { code, name, flag } for UI pickers */
+    getLanguageList() {
+      return Object.entries(languages).map(([code, lang]) => ({
+        code,
+        name: lang.name,
+        flag: lang.flag,
+      }));
+    },
+
+    /**
+     * Add a new language at runtime.
+     * @param {string} code  - BCP-47 like code, e.g. 'fr'
+     * @param {Object} config - same shape as the language objects above
+     */
+    addLanguage(code, config) {
+      languages[code] = config;
+    },
+  };
+
+  return api;
+})();

@@ -1,0 +1,200 @@
+/* css/panels.css — Left sidebar (quick phrases), calibration screen */
+
+/* ── App body layout ────────────────────────────────────────────────────── */
+#app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* ── Left Sidebar: Quick Phrases ─────────────────────────────────────────── */
+#sidebar {
+  width: 160px;
+  min-width: 140px;
+  max-width: 180px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+#phrases-heading {
+  padding: 10px 12px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#phrases-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
+}
+.phrase-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  background: var(--bg-key);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+.phrase-btn:hover {
+  background: var(--bg-key-hover);
+  border-color: var(--border-accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  transform: translateX(2px);
+}
+.phrase-emoji {
+  font-size: 1rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.phrase-text {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* ── Calibration Screen ─────────────────────────────────────────────────── */
+#calibration-screen {
+  background: radial-gradient(ellipse at 50% 50%, #0d1328 0%, #080c18 100%);
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 40px;
+  z-index: 100;
+}
+#calib-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+#calib-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+#calib-instruction {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  max-width: 400px;
+  line-height: 1.5;
+}
+#calib-progress {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 8px;
+  letter-spacing: 0.3px;
+}
+#calib-dot {
+  position: fixed;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 8px var(--accent-glow), 0 0 40px var(--accent);
+  transform: translate(-50%, -50%);
+  transition: left 0.3s cubic-bezier(0.4,0,0.2,1), top 0.3s cubic-bezier(0.4,0,0.2,1);
+  z-index: 200;
+  pointer-events: none;
+}
+#calib-dot.pulse {
+  animation: calib-pulse 1.2s ease-in-out infinite;
+}
+#calib-dot.confirmed {
+  animation: calib-confirm 0.4s ease;
+  background: #fff;
+}
+@keyframes calib-pulse {
+  0%, 100% { box-shadow: 0 0 0 8px var(--accent-glow), 0 0 40px var(--accent); transform: translate(-50%, -50%) scale(1); }
+  50%       { box-shadow: 0 0 0 16px var(--accent-glow), 0 0 60px var(--accent); transform: translate(-50%, -50%) scale(1.15); }
+}
+@keyframes calib-confirm {
+  0%   { transform: translate(-50%, -50%) scale(1.5); background: #fff; }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Calibration bottom actions */
+#calib-actions {
+  position: fixed;
+  bottom: 24px;
+  display: flex;
+  gap: 12px;
+}
+.calib-action-btn {
+  background: var(--bg-key);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all var(--transition);
+}
+.calib-action-btn:hover {
+  background: var(--bg-key-hover);
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+}
+.calib-action-btn.primary {
+  background: rgba(0,229,204,0.12);
+  color: var(--accent);
+  border-color: var(--border-accent);
+}
+.calib-action-btn.primary:hover {
+  background: var(--accent);
+  color: #000;
+  box-shadow: var(--shadow-glow);
+}
+
+/* ── Responsive: sidebar hides on narrow screens ─────────────────────── */
+@media (max-width: 640px) {
+  #sidebar {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 90px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #app-body {
+    flex-direction: column;
+  }
+  #phrases-panel {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .phrase-btn {
+    flex-shrink: 0;
+    padding: 7px 10px;
+    border-radius: 99px;
+  }
+  .phrase-text { font-size: 0.75rem; }
+}
