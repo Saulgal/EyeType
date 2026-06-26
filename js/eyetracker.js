@@ -157,11 +157,27 @@ window.EyeTracker = (function () {
     handleEyeState(avgEAR < EAR_THRESHOLD);
 
     // ── Gaze estimation ────────────────────────────────────────────────────
-    // Average of both iris centers for better stability
+    // Iris landmarks require refineLandmarks:true. Some CDN versions return
+    // pixel coordinates (e.g. x=320 for 640px wide), others return normalized
+    // [0,1]. We auto-detect and normalise.
+    if (landmarks.length <= IRIS_LEFT_CENTER) return; // iris not available
+
     const irisL = lm(landmarks, IRIS_LEFT_CENTER);
     const irisR = lm(landmarks, IRIS_RIGHT_CENTER);
-    const rawIrisX = (irisL.x + irisR.x) / 2;
-    const rawIrisY = (irisL.y + irisR.y) / 2;
+    let rawIrisX = (irisL.x + irisR.x) / 2;
+    let rawIrisY = (irisL.y + irisR.y) / 2;
+
+    // If x or y > 1.5 the coords are in pixel space — normalise by video size
+    if (rawIrisX > 1.5 || rawIrisY > 1.5) {
+      const vw = videoEl.videoWidth  || 640;
+      const vh = videoEl.videoHeight || 480;
+      rawIrisX /= vw;
+      rawIrisY /= vh;
+    }
+
+    // Clamp to valid range just in case
+    rawIrisX = Math.max(0, Math.min(1, rawIrisX));
+    rawIrisY = Math.max(0, Math.min(1, rawIrisY));
 
     // Dispatch raw iris position for calibration module
     document.dispatchEvent(new CustomEvent('eyetracker-raw-iris', {

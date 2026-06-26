@@ -4,6 +4,9 @@ window.Calibration = (function () {
   'use strict';
 
   const STORAGE_KEY   = 'eyetype_calibration';
+  // Increment this whenever the calibration data format or coordinate system changes.
+  // Any saved calibration with a different version will be automatically discarded.
+  const CALIB_VERSION = 3;
   const NUM_DOTS      = 9;
   const DOTS_PER_ROW  = 3;
   const MARGIN_PCT    = 0.10;  // 10% margin from edge
@@ -194,6 +197,8 @@ window.Calibration = (function () {
     document.removeEventListener('eyetracker-raw-iris', onRawIris);
 
     const coeffs = fitAffine(rawData);
+    // Tag with version so outdated calibrations can be detected
+    coeffs._v = CALIB_VERSION;
     // Persist to localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(coeffs));
 
@@ -224,10 +229,17 @@ window.Calibration = (function () {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return false;
     try {
-      const coeffs = JSON.parse(saved);
-      window.EyeTracker.setCalibration(coeffs);
+      const data = JSON.parse(saved);
+      // Reject calibrations from older versions (different coordinate system)
+      if (data._v !== CALIB_VERSION) {
+        console.warn('[EyeType] Discarding outdated calibration (version mismatch).');
+        clearSaved();
+        return false;
+      }
+      window.EyeTracker.setCalibration(data);
       return true;
     } catch {
+      clearSaved();
       return false;
     }
   }
