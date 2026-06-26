@@ -64,11 +64,12 @@ html, body {
   box-shadow: 0 0 0 4px var(--accent-glow), 0 0 16px var(--accent);
   pointer-events: none;
   z-index: 9999;
-  transform: translate(-50%, -50%);
-  transition: transform 0.04s linear;
+  /* Offset so the center of the dot is at the gaze coordinate */
   margin-left: -10px;
   margin-top: -10px;
-  will-change: transform;
+  /* Smooth movement without lag */
+  transition: left 0.04s linear, top 0.04s linear;
+  will-change: left, top;
 }
 #gaze-dot::after {
   content: '';
@@ -78,6 +79,7 @@ html, body {
   background: #fff;
   opacity: 0.8;
 }
+
 
 /* ── Screens ─────────────────────────────────────────────────────────────── */
 .screen {

@@ -197,8 +197,13 @@ window.Calibration = (function () {
     // Persist to localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(coeffs));
 
-    // Apply to tracker
+    // Apply calibration matrix to tracker
     window.EyeTracker.setCalibration(coeffs);
+
+    // Clear calibration-specific handlers to prevent stale blinks firing recordPoint
+    // app.js wireAppHandlers() will restore the correct ones inside onDone()
+    window.EyeTracker.setOnConfirm(null);
+    window.EyeTracker.setOnGaze(null);
 
     instructionText.textContent = window.I18n.t('calibrationComplete');
     dotEl.style.display = 'none';
@@ -211,6 +216,7 @@ window.Calibration = (function () {
       }, 500);
     }, 800);
   }
+
 
   // ─── Public API ────────────────────────────────────────────────────────────
   /** Load saved calibration from localStorage and apply to EyeTracker */

@@ -77,7 +77,11 @@ window.App = (function () {
         showScreen('app');
       } else {
         showScreen('calibration');
-        Calibration.start(() => showScreen('app'));
+        Calibration.start(() => {
+          // CRITICAL: calibration overwrites onGaze/onConfirm — restore them now
+          wireAppHandlers();
+          showScreen('app');
+        });
       }
     } catch (err) {
       console.error('EyeTracker init failed:', err);
@@ -85,19 +89,26 @@ window.App = (function () {
     }
   }
 
-  // ─── Eye tracker startup ──────────────────────────────────────────────────
-  async function startEyeTracker() {
-    // Wire events before init
+  // ─── App-level EyeTracker handlers ────────────────────────────────────────
+  // Extracted so they can be RE-APPLIED after calibration (which overwrites them)
+  function wireAppHandlers() {
     EyeTracker.setOnGaze((x, y) => {
-      // Move gaze dot
-      gazeDot.style.transform = `translate(${x}px, ${y}px)`;
-      // Pass to keyboard
+      // Move gaze cursor dot on screen
+      gazeDot.style.left = x + 'px';
+      gazeDot.style.top  = y + 'px';
+      // Pass to keyboard for proximity highlight + dwell
       Keyboard.onGaze(x, y);
     });
 
     EyeTracker.setOnConfirm(() => {
       Keyboard.onConfirm();
     });
+  }
+
+  // ─── Eye tracker startup ──────────────────────────────────────────────────
+  async function startEyeTracker() {
+    // Wire app-level event handlers
+    wireAppHandlers();
 
     EyeTracker.setOnStatus(status => {
       updateStatus(status);
