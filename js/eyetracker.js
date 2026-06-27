@@ -1,17 +1,20 @@
-// js/eyetracker.js — MediaPipe FaceMesh eye tracker
-// Handles: face detection, iris gaze estimation, blink detection (EAR), event dispatch
+// js/eyetracker.js — MediaPipe FaceMesh head + gaze tracker
+// Uses NOSE TIP as primary tracking point (standard for webcam-based AAC).
+// Iris landmarks at 640p webcam don't have enough resolution for eye-only tracking.
+// Blink detection via EAR (Eye Aspect Ratio) is separate and still iris-based.
 
 window.EyeTracker = (function () {
   'use strict';
 
   // ─── MediaPipe landmark indices ────────────────────────────────────────────
-  // Eye landmarks for EAR (Eye Aspect Ratio) calculation
+  // Eye landmarks for EAR (Eye Aspect Ratio) blink detection
   const EYE_LEFT  = { p1:362, p2:385, p3:387, p4:263, p5:373, p6:380 };
   const EYE_RIGHT = { p1:33,  p2:160, p3:158, p4:133, p5:153, p6:144 };
 
-  // Iris center landmarks (requires refineLandmarks:true)
-  const IRIS_LEFT_CENTER  = 468;
-  const IRIS_RIGHT_CENTER = 473;
+  // Nose tip — the primary tracking point for head-guided interaction.
+  // It's the most protruding facial feature, giving the largest and most
+  // proportional movement in response to head rotation.
+  const NOSE_TIP = 1;
 
   // ─── Configurable thresholds ───────────────────────────────────────────────
   const EAR_THRESHOLD       = 0.20;  // below this = eye closed
@@ -19,7 +22,7 @@ window.EyeTracker = (function () {
   const BLINK_MAX_MS        = 400;   // max blink (longer = long-close)
   const LONG_CLOSE_MS       = 1000;  // hold closed this long = confirm
   const TRIPLE_BLINK_WINDOW = 1800;  // ms window for 3 blinks
-  const SMOOTH_FACTOR       = 0.35;  // higher = more responsive, lower = more stable
+  const SMOOTH_FACTOR       = 0.35;  // higher = more responsive
 
   // ─── State ─────────────────────────────────────────────────────────────────
   let faceMesh   = null;
@@ -53,9 +56,7 @@ window.EyeTracker = (function () {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  /**
-   * Eye Aspect Ratio:  (||P2-P6|| + ||P3-P5||) / (2 * ||P1-P4||)
-   */
+  /** Eye Aspect Ratio for blink detection */
   function computeEAR(landmarks, eye) {
     const p1 = lm(landmarks, eye.p1);
     const p2 = lm(landmarks, eye.p2);
@@ -63,32 +64,29 @@ window.EyeTracker = (function () {
     const p4 = lm(landmarks, eye.p4);
     const p5 = lm(landmarks, eye.p5);
     const p6 = lm(landmarks, eye.p6);
-    const A = dist(p2, p6);
-    const B = dist(p3, p5);
-    const C = dist(p1, p4);
-    return (A + B) / (2.0 * C);
+    return (dist(p2, p6) + dist(p3, p5)) / (2.0 * dist(p1, p4));
   }
 
   /**
-   * Map normalized iris position [0,1] to screen pixels using calibration.
-   * Uses the absolute iris position in the camera frame, which naturally
-   * responds to BOTH head movement and eye movement — the standard approach
-   * for webcam-based AAC systems (similar to WebGazer, GazeRecorder, etc.)
+   * Map nose-tip normalized position [0,1] → screen pixels.
    *
-   * calibData = { ax, ay, az, bx, by, bz } such that:
-   *   screen_x = ax * iris_x + ay * iris_y + az
-   *   screen_y = bx * iris_x + by * iris_y + bz
+   * With calibration: affine transform from 9-point calibration.
+   * Without calibration: direct linear mapping (mirrored for webcam).
+   *
+   * The nose tip at 640p webcam typically moves across ~0.25–0.75 range
+   * with normal head movements, giving calibration coefficients in the
+   * reasonable 2000–5000 range (vs 30,000+ for iris-only tracking).
    */
-  function mapToScreen(irisX, irisY) {
+  function mapToScreen(noseX, noseY) {
     let x, y;
     if (!calibData) {
       // Fallback: direct linear mapping (mirrored horizontally for webcam)
-      x = (1 - irisX) * window.innerWidth;
-      y = irisY * window.innerHeight;
+      x = (1 - noseX) * window.innerWidth;
+      y = noseY * window.innerHeight;
     } else {
       const { ax, ay, az, bx, by, bz } = calibData;
-      x = ax * irisX + ay * irisY + az;
-      y = bx * irisX + by * irisY + bz;
+      x = ax * noseX + ay * noseY + az;
+      y = bx * noseX + by * noseY + bz;
     }
     // Clamp to screen bounds
     x = Math.max(0, Math.min(window.innerWidth,  x));
@@ -101,11 +99,8 @@ window.EyeTracker = (function () {
     const now = Date.now();
 
     if (isCurrentlyClosed && !eyeClosed) {
-      // Eye just closed
       eyeClosed = true;
       eyeClosedSince = now;
-
-      // Start long-close timer
       longCloseTimer = setTimeout(() => {
         if (eyeClosed && onConfirm) {
           onConfirm();
@@ -114,17 +109,14 @@ window.EyeTracker = (function () {
       }, LONG_CLOSE_MS);
 
     } else if (!isCurrentlyClosed && eyeClosed) {
-      // Eye just opened
       eyeClosed = false;
       const duration = now - eyeClosedSince;
       clearTimeout(longCloseTimer);
       longCloseTimer = null;
 
-      // Count as valid blink if duration is in expected range
       if (duration >= BLINK_MIN_MS && duration <= BLINK_MAX_MS) {
         blinkTimestamps.push(now);
         blinkTimestamps = blinkTimestamps.filter(t => now - t <= TRIPLE_BLINK_WINDOW);
-
         if (blinkTimestamps.length >= 3) {
           blinkTimestamps = [];
           if (onConfirm) onConfirm();
@@ -150,40 +142,30 @@ window.EyeTracker = (function () {
 
     const landmarks = results.multiFaceLandmarks[0];
 
-    // ── Blink detection ────────────────────────────────────────────────────
+    // ── Blink detection (uses eye landmarks, not nose) ─────────────────────
     const earL = computeEAR(landmarks, EYE_LEFT);
     const earR = computeEAR(landmarks, EYE_RIGHT);
     const avgEAR = (earL + earR) / 2;
     handleEyeState(avgEAR < EAR_THRESHOLD);
 
-    // ── Gaze estimation ────────────────────────────────────────────────────
-    // SKIP gaze updates when eyes are closed — iris landmarks are unreliable
-    // during blinks, causing the cursor to jump erratically.
+    // ── Head-gaze estimation (uses nose tip) ───────────────────────────────
+    // Skip gaze updates when eyes are closed to prevent cursor jumping
     if (eyeClosed) return;
 
-    // Iris landmarks require refineLandmarks:true
-    if (landmarks.length <= IRIS_LEFT_CENTER) return;
+    const nose = lm(landmarks, NOSE_TIP);
+    let rawX = nose.x;
+    let rawY = nose.y;
 
-    // Average both iris centers for stability
-    const irisL = lm(landmarks, IRIS_LEFT_CENTER);
-    const irisR = lm(landmarks, IRIS_RIGHT_CENTER);
-    let rawX = (irisL.x + irisR.x) / 2;
-    let rawY = (irisL.y + irisR.y) / 2;
-
-    // Auto-detect pixel vs normalized coordinates from MediaPipe CDN
-    // Normalized values are in [0,1]; pixel values are >> 1
+    // Auto-detect pixel vs normalized coordinates from MediaPipe
     if (rawX > 1.5 || rawY > 1.5) {
-      const vw = videoEl.videoWidth  || 640;
-      const vh = videoEl.videoHeight || 480;
-      rawX /= vw;
-      rawY /= vh;
+      rawX /= (videoEl.videoWidth  || 640);
+      rawY /= (videoEl.videoHeight || 480);
     }
 
-    // Clamp to [0,1]
     rawX = Math.max(0, Math.min(1, rawX));
     rawY = Math.max(0, Math.min(1, rawY));
 
-    // Dispatch raw iris position for calibration module
+    // Dispatch for calibration module (same event name for compatibility)
     document.dispatchEvent(new CustomEvent('eyetracker-raw-iris', {
       detail: { x: rawX, y: rawY }
     }));
@@ -199,7 +181,6 @@ window.EyeTracker = (function () {
       smoothY += SMOOTH_FACTOR * (mapped.y - smoothY);
     }
 
-    // Always dispatch — smoothing handles jitter
     if (onGaze) onGaze(smoothX, smoothY);
   }
 
@@ -216,7 +197,7 @@ window.EyeTracker = (function () {
 
     faceMesh.setOptions({
       maxNumFaces:          1,
-      refineLandmarks:      true,   // enables iris tracking
+      refineLandmarks:      true,
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5,
     });
@@ -234,7 +215,6 @@ window.EyeTracker = (function () {
     await camera.start();
   }
 
-  /** Provide calibration data computed by calibration.js */
   function setCalibration(data) {
     calibData = data;
     smoothX = null;
@@ -244,13 +224,8 @@ window.EyeTracker = (function () {
   function setOnGaze(cb)         { onGaze = cb; }
   function setOnConfirm(cb)      { onConfirm = cb; }
   function setOnStatus(cb)       { onStatusChange = cb; }
-
   function getStatus()           { return status; }
-
-  /** Force a confirm (for keyboard fallback) */
   function triggerConfirm()      { if (onConfirm) onConfirm(); }
-
-  /** Pause/resume camera processing */
   function pause()  { if (camera) camera.stop(); }
   function resume() { if (camera) camera.start(); }
 
